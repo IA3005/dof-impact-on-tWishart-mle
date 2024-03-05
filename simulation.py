@@ -1,13 +1,11 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 from joblib import Parallel, delayed
 from tqdm import tqdm
-
-import sklearn
-from sklearn.metrics import confusion_matrix
 from scipy.linalg import sqrtm,pinv
+
+from utils import mean_list, std_list
 from manifold import SPD
 from generate_data import  t_wishart_rvs, generate_random_sdp
 from estimation import mle_RCG

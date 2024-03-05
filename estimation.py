@@ -57,7 +57,7 @@ def wishart_t_est(S,n,df,manifold, algo="RCG"):
 
     return optimizer.run(problem, initial_point=init).point
 
-def mle_RCG(samples,n,df):
+def mle_RCG(samples,n,df,algo="RCG"):
     if df==np.inf:
         return np.mean(samples,axis=0)/n
     _,p,_=samples.shape

@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from scipy.linalg import sqrtm,pinv
+from scipy.linalg import sqrtm,pinv,pinvh
 
 from utils import mean_list, std_list
 from manifold import SPD

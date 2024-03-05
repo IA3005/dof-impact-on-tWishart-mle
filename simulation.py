@@ -52,6 +52,14 @@ if __name__ == '__main__':
     samples_conds = [[np.linalg.cond(samples[j*K:(j+1)*K][i]) for i in range(K)] for j in range(MC)]
     samples_conds_mean = np.mean(np.asarray(samples_conds))#mean of all samples (from all monte carlo sets)
 
+    #condition involving traces
+    df_hyp_1 = np.asarray([n*p*(max(samples_traces[j])*max(samples_inverse_traces[j])/p-1) for j in range(MC)]) 
+    #condition involving eigenvalues
+    df_hyp_2 = np.asarray([n*p*(p*(max(samples_max_eigenval[j])/min(samples_min_eigenval[j]))-1) for j in range(MC)]) 
+    #condition to have the right plateau (involving traces) 
+    df_hyp_3 = np.asarray([n*p*(psi(max(samples_traces[j])*max(samples_inverse_traces[j]))/p-1) for j in range(MC)]) 
+
+
     print("Compute MLE estimators with RCG:")
     for df in tqdm(dfs):
         centers_estim[df]=Parallel(n_jobs=-1)(delayed(mle_RCG)(np.asarray(samples[j*K:(j+1)*K]).reshape((K,p,p)),n,df) for j in (range(MC)))
@@ -67,131 +75,133 @@ if __name__ == '__main__':
             centers_traces[df].append(np.trace(center))
             centers_inverse_traces[df].append(np.trace(pinvh(center)))
             centers_eigenvals[df].append(np.linalg.eigvalsh(center))
-            
+
+    
     errors_estim = {df:[np.linalg.norm(centers_estim[df][j]-center) for j in range(MC)] for df in dfs}
-    errors_estim_means = [mean_list(errors_estim[df]) for df in dfs]
-    errors_estim_stds = [std_list(errors_estim[df]) for df in dfs]
+    errors_estim_means = np.asarray([mean_list(errors_estim[df]) for df in dfs])
+    errors_estim_stds = np.asarray([std_list(errors_estim[df]) for df in dfs])
     
-    ##########################################################################
-    ##figure 1: L2 norm between estimated centers and real center
-    ##########################################################################
-    fig = plt.figure()
-    plt.xscale('log')
-    plt.yscale('log')
-    y1= plt.errorbar(dfs,errors_estim_means,errors_estim_stds)
     
-    df_hyp_1 = np.asarray([n*p*(max(samples_traces[j])*max(samples_inverse_traces[j])/p-1) for j in range(MC)]) 
-    ymax=max(errors_estim_means)+max(errors_estim_stds)
-    plt.vlines(np.mean(df_hyp_1),0,ymax,'r',label="hyp on traces")
-    plt.vlines(np.mean(df_hyp_1)-np.std(df_hyp_1),0,ymax,'r','dashed')
-    plt.vlines(np.mean(df_hyp_1)+np.std(df_hyp_1),0,ymax,'r','dashed')
- 
-    df_hyp_2 = np.asarray([n*p*(p*(max(samples_max_eigenval[j])/min(samples_min_eigenval[j]))-1) for j in range(MC)]) 
-    plt.vlines(np.mean(df_hyp_2),0,ymax,'g',label="hyp on eigenvalues")
-    plt.vlines(np.mean(df_hyp_2)-np.std(df_hyp_2),0,ymax,'g','dashed')
-    plt.vlines(np.mean(df_hyp_2)+np.std(df_hyp_2),0,ymax,'g','dashed')
-
-  
-    plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, center_cond={np.round(cond,3)} \n  samples_cond={np.round(samples_conds_mean,3)}")#" \n df_pop={np.round(np.mean(dfs_pop),3)}+/- {np.round(np.std(dfs_pop),3)}")
-    plt.legend(loc="upper left")
-    plt.xlabel("degree of freedom used for center estimation")
-    plt.ylabel("L2 norm of diff between estimated center \n and real center")
-    plt.show()
-    
-    ##########################################################################
-    ##figure 2:  Traces of estimated centers (+theorical upper bound)
-    ##########################################################################
-    figbis = plt.figure()
-    plt.xscale('log')
-    plt.yscale('log')
-    bound_trace={df: [(max(samples_traces[j])/df)*(df/n+p-1) for j in range(MC)] for df in dfs}
-    ##bound_trace[df][j]= upper bound of the trace of estimated center with df based on the samples of the jth monte carlo set 
-    bound_trace_means = [mean_list(bound_trace[df]) for df in dfs]
-    bound_trace_stds = [std_list(bound_trace[df]) for df in dfs]
-    trace_means = [mean_list(centers_traces[df]) for df in dfs]
-    trace_stds = [std_list(centers_traces[df]) for df in dfs]
-    y2= plt.errorbar(dfs,bound_trace_means,bound_trace_stds,label="theorical")
-    y2bis= plt.errorbar(dfs,trace_means,trace_stds,label="empirical")
-    plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, center_cond={np.round(cond,3)} \n  samples_cond={np.round(samples_conds_mean,3)}")#" \n df_pop={np.round(np.mean(dfs_pop),3)}+/- {np.round(np.std(dfs_pop),3)}")
-    plt.legend(loc="upper left")
-    plt.xlabel("degree of freedom used for center estimation")
-    plt.ylabel("trace of the computed centers")
-    plt.show()
-
-    ##########################################################################
-    ##figure 3: Traces of the inverse of estimated centers (+theorical upper bound)
-    ##########################################################################
-    figtris = plt.figure()
-    respect_df_hyp = True
-    plt.xscale('log')
-    plt.yscale('log')
-    bound_inv_trace={df: [max(samples_inverse_traces[j])*df/(df/n+p-max(samples_traces[j])*max(samples_inverse_traces[j])) for j in range(MC)] for df in dfs}
-    ##bound_inv_trace[df][j]=trace of the inverse of the estimated center with df based on samples of the jth monte carlo set
-    bound_inv_trace_means = [mean_list(bound_inv_trace[df]) for df in dfs]
-    bound_inv_trace_stds = [std_list(bound_inv_trace[df]) for df in dfs]
-    inv_trace_means = [mean_list(centers_inverse_traces[df]) for df in dfs]
-    inv_trace_stds = [std_list(centers_inverse_traces[df]) for df in dfs]
-    y3= plt.errorbar(dfs,bound_inv_trace_means,bound_inv_trace_stds,label="theorical")
-    y3bis= plt.errorbar(dfs,inv_trace_means,inv_trace_stds,label="empirical")
-    ymax=max(max(inv_trace_means)+max(inv_trace_stds),max(bound_inv_trace_means)+max(bound_inv_trace_stds))
-    plt.vlines(np.mean(df_hyp_1),0,ymax,'g',label="hyp on traces")
-    plt.vlines(np.mean(df_hyp_1)-np.std(df_hyp_1),0,ymax,'g','dashed')
-    plt.vlines(np.mean(df_hyp_1)+np.std(df_hyp_1),0,ymax,'g','dashed')
-    if respect_df_hyp:
-        plt.xlim([np.mean(df_hyp_1)-1.01*np.std(df_hyp_1),max(dfs)])
-    plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, center_cond={np.round(cond,3)} \n  samples_cond={np.round(samples_conds_mean,3)}")#" \n df_pop={np.round(np.mean(dfs_pop),3)}+/- {np.round(np.std(dfs_pop),3)}")
-    plt.legend(loc="upper left")
-    plt.xlabel("degree of freedom used for center estimation")
-    plt.ylabel("trace of the inverse of computed centers")
-    plt.show()
-    
- 
-    ##########################################################################
-    ##figure 4: Largest eigenvalue of estimated centers (+theorical upper bound)
-    ##########################################################################
-    figbisbis = plt.figure()
-    plt.xscale('log')
-    plt.yscale('log')
-    bound_max_eigenval={df: [(1/df)*((df/n+p)*max(samples_max_eigenval[j]) - min(samples_min_eigenval[j])) for j in range(MC)] for df in dfs}
-    bound_max_eigenval_means = [mean_list(bound_max_eigenval[df]) for df in dfs]
-    bound_max_eigenval_stds = [std_list(bound_max_eigenval[df]) for df in dfs]
-    max_eigenval={df:[max(centers_eigenvals[df][j]) for j in range(MC)] for df in dfs}
-    max_eigenval_means = [mean_list(max_eigenval[df]) for df in dfs]
-    max_eigenval_stds = [std_list(max_eigenval[df]) for df in dfs]
-    y4= plt.errorbar(dfs,bound_max_eigenval_means,bound_max_eigenval_stds,label="theorical")
-    y4bis= plt.errorbar(dfs,max_eigenval_means,max_eigenval_stds,label="empirical")
-    plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, center_cond={np.round(cond,3)} \n  samples_cond={np.round(samples_conds_mean,3)}")#" \n df_pop={np.round(np.mean(dfs_pop),3)}+/- {np.round(np.std(dfs_pop),3)}")
-    plt.legend(loc="upper left")
-    plt.xlabel("degree of freedom used for center estimation")
-    plt.ylabel("Largest eigenvalue of the computed centers")
-    plt.show()
-
- 
-    ##########################################################################
-    ##figure 4: Smallest eigenvalue of estimated centers (+theorical lower bound)
-    ##########################################################################  
-    figtrisbis = plt.figure()
-    respect_df_hyp = True
-    plt.xscale('log')
-    plt.yscale('log')
-    bound_min_eigenval={df: [(1/df)*((df/n+p)*min(samples_min_eigenval[j])-p*p*max(samples_max_eigenval[j])) for j in range(MC)] for df in dfs}
-    bound_min_eigenval_means = [mean_list(bound_min_eigenval[df]) for df in dfs]
-    bound_min_eigenval_stds = [std_list(bound_min_eigenval[df]) for df in dfs]
-    min_eigenval={df:[min(centers_eigenvals[df][j]) for j in range(MC)] for df in dfs}
-    min_eigenval_means = [mean_list(min_eigenval[df]) for df in dfs]
-    min_eigenval_stds = [std_list(min_eigenval[df]) for df in dfs]
-    y5= plt.errorbar(dfs,bound_min_eigenval_means,bound_min_eigenval_stds,label="theorical")
-    y5bis= plt.errorbar(dfs,min_eigenval_means,min_eigenval_stds,label="empirical")
-    ymax=max(max(min_eigenval_means)+max(min_eigenval_stds),max(bound_min_eigenval_means)+max(bound_min_eigenval_stds))
-    plt.vlines(np.mean(df_hyp_2),0,ymax,'g',label="hyp on traces")
-    plt.vlines(np.mean(df_hyp_2)-np.std(df_hyp_2),0,ymax,'g','dashed')
-    plt.vlines(np.mean(df_hyp_2)+np.std(df_hyp_2),0,ymax,'g','dashed')
-    if respect_df_hyp:
-        plt.xlim([np.mean(df_hyp_2)-1.01*np.std(df_hyp_2),max(dfs)])
-    plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, center_cond={np.round(cond,3)} \n  samples_cond={np.round(samples_conds_mean,3)}")#" \n df_pop={np.round(np.mean(dfs_pop),3)}+/- {np.round(np.std(dfs_pop),3)}")
-    plt.legend(loc="upper left")
-    plt.xlabel("degree of freedom used for center estimation")
-    plt.ylabel("Smallest eigenvalue of computed centers")
-    plt.show()
-    
+    for logyscale in [True,False]:
         
+        ##########################################################################
+        ##figure 1: L2 norm between estimated centers and real center
+        ##########################################################################
+        fig1 = plt.figure()
+        plt.xscale('log')
+        if logyscale:
+            plt.yscale('log')
+        y1= plt.errorbar(dfs,errors_estim_means,errors_estim_stds)
+        ymax=max(errors_estim_means+errors_estim_stds)
+        plt.vlines(np.mean(df_hyp_3),0,ymax,'r',label="hyp on traces \n for right plateau")
+        plt.vlines(np.mean(df_hyp_3)-np.std(df_hyp_3),0,ymax,'r','dashed')
+        plt.vlines(np.mean(df_hyp_3)+np.std(df_hyp_3),0,ymax,'r','dashed')
+        plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, \n center_cond={np.round(cond,2)}, samples_cond={np.round(samples_conds_mean,2)}, \n  ylogscale={logyscale}")
+        plt.legend(loc="upper left")
+        plt.xlabel("degree of freedom used for center estimation")
+        plt.ylabel("L2 norm of diff between estimated center \n and real center")
+        plt.show()
+        
+        ##########################################################################
+        ##figure 2:  Traces of estimated centers (+theorical upper bound)
+        ##########################################################################
+        fig2 = plt.figure()
+        plt.xscale('log')
+        if logyscale:
+            plt.yscale('log')
+        bound_trace={df: [(max(samples_traces[j])/df)*(df/n+p-1) for j in range(MC)] for df in dfs}
+        ##bound_trace[df][j]= upper bound of the trace of estimated center with df based on the samples of the jth monte carlo set 
+        bound_trace_means = np.asarray([mean_list(bound_trace[df]) for df in dfs])
+        bound_trace_stds = np.asarray([std_list(bound_trace[df]) for df in dfs])
+        trace_means = np.asarray([mean_list(centers_traces[df]) for df in dfs])
+        trace_stds = np.asarray([std_list(centers_traces[df]) for df in dfs])
+        y2= plt.errorbar(dfs,bound_trace_means,bound_trace_stds,label="theorical")
+        y2bis= plt.errorbar(dfs,trace_means,trace_stds,label="empirical")
+        plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, \n center_cond={np.round(cond,2)}, samples_cond={np.round(samples_conds_mean,2)}, \n  ylogscale={logyscale}")
+        plt.legend(loc="upper left")
+        plt.xlabel("degree of freedom used for center estimation")
+        plt.ylabel("trace of the computed centers")
+        plt.show()
+    
+        ##########################################################################
+        ##figure 3: Traces of the inverse of estimated centers (+theorical upper bound)
+        ##########################################################################
+        fig3 = plt.figure()
+        respect_df_hyp = True
+        plt.xscale('log')
+        if logyscale:
+            plt.yscale('log')
+        bound_inv_trace={df: [max(samples_inverse_traces[j])*df/(df/n+p-max(samples_traces[j])*max(samples_inverse_traces[j])) for j in range(MC)] for df in dfs}
+        ##bound_inv_trace[df][j]=trace of the inverse of the estimated center with df based on samples of the jth monte carlo set
+        bound_inv_trace_means = np.asarray([mean_list(bound_inv_trace[df]) for df in dfs])
+        bound_inv_trace_stds = np.asarray([std_list(bound_inv_trace[df]) for df in dfs])
+        inv_trace_means = np.asarray([mean_list(centers_inverse_traces[df]) for df in dfs])
+        inv_trace_stds = np.asarray([std_list(centers_inverse_traces[df]) for df in dfs])
+        y3= plt.errorbar(dfs,bound_inv_trace_means,bound_inv_trace_stds,label="theorical")
+        y3bis= plt.errorbar(dfs,inv_trace_means,inv_trace_stds,label="empirical")
+        ymax=max(max(inv_trace_means+inv_trace_stds),max(bound_inv_trace_means+bound_inv_trace_stds))
+        plt.vlines(np.mean(df_hyp_1),0,ymax,'g',label="hyp on traces")
+        plt.vlines(np.mean(df_hyp_1)-np.std(df_hyp_1),0,ymax,'g','dashed')
+        plt.vlines(np.mean(df_hyp_1)+np.std(df_hyp_1),0,ymax,'g','dashed')
+        if respect_df_hyp:
+            plt.xlim([np.mean(df_hyp_1)-1.01*np.std(df_hyp_1),max(dfs)])
+        plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, \n center_cond={np.round(cond,2)}, samples_cond={np.round(samples_conds_mean,2)}, \n  ylogscale={logyscale}")
+        plt.legend(loc="upper left")
+        plt.xlabel("degree of freedom used for center estimation")
+        plt.ylabel("trace of the inverse of computed centers")
+        plt.show()
+        
+     
+        ##########################################################################
+        ##figure 4: Largest eigenvalue of estimated centers (+theorical upper bound)
+        ##########################################################################
+        fig4 = plt.figure()
+        plt.xscale('log')
+        if logyscale:
+            plt.yscale('log')
+        bound_max_eigenval={df: [(1/df)*((df/n+p)*max(samples_max_eigenval[j]) - min(samples_min_eigenval[j])) for j in range(MC)] for df in dfs}
+        bound_max_eigenval_means = np.asarray([mean_list(bound_max_eigenval[df]) for df in dfs])
+        bound_max_eigenval_stds = np.asarray([std_list(bound_max_eigenval[df]) for df in dfs])
+        max_eigenval={df:[max(centers_eigenvals[df][j]) for j in range(MC)] for df in dfs}
+        max_eigenval_means = np.asarray([mean_list(max_eigenval[df]) for df in dfs])
+        max_eigenval_stds = np.asarray([std_list(max_eigenval[df]) for df in dfs])
+        y4= plt.errorbar(dfs,bound_max_eigenval_means,bound_max_eigenval_stds,label="theorical")
+        y4bis= plt.errorbar(dfs,max_eigenval_means,max_eigenval_stds,label="empirical")
+        plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, \n center_cond={np.round(cond,2)}, samples_cond={np.round(samples_conds_mean,2)}, \n  ylogscale={logyscale}")
+        plt.legend(loc="upper left")
+        plt.xlabel("degree of freedom used for center estimation")
+        plt.ylabel("Largest eigenvalue of the computed centers")
+        plt.show()
+    
+     
+        ##########################################################################
+        ##figure 5: Smallest eigenvalue of estimated centers (+theorical lower bound)
+        ##########################################################################  
+        fig5 = plt.figure()
+        respect_df_hyp = False
+        plt.xscale('log')
+        if logyscale:
+            plt.yscale('log')
+        bound_min_eigenval={df: [(1/df)*((df/n+p)*min(samples_min_eigenval[j])-p*p*max(samples_max_eigenval[j])) for j in range(MC)] for df in dfs}
+        bound_min_eigenval_means = np.asarray([mean_list(bound_min_eigenval[df]) for df in dfs])
+        bound_min_eigenval_stds = np.asarray([std_list(bound_min_eigenval[df]) for df in dfs])
+        min_eigenval={df:[min(centers_eigenvals[df][j]) for j in range(MC)] for df in dfs}
+        min_eigenval_means = np.asarray([mean_list(min_eigenval[df]) for df in dfs])
+        min_eigenval_stds = np.asarray([std_list(min_eigenval[df]) for df in dfs])
+        y5= plt.errorbar(dfs,bound_min_eigenval_means,bound_min_eigenval_stds,label="theorical")
+        y5bis= plt.errorbar(dfs,min_eigenval_means,min_eigenval_stds,label="empirical")
+        ymax=max(max(min_eigenval_means+min_eigenval_stds),max(bound_min_eigenval_means+bound_min_eigenval_stds))
+        ymin=min(min(min_eigenval_means-min_eigenval_stds),min(bound_min_eigenval_means-bound_min_eigenval_stds))
+        plt.vlines(np.mean(df_hyp_2),ymin,ymax,'g',label="hyp on traces")
+        plt.vlines(np.mean(df_hyp_2)-np.std(df_hyp_2),ymin,ymax,'g','dashed')
+        plt.vlines(np.mean(df_hyp_2)+np.std(df_hyp_2),ymin,ymax,'g','dashed')
+        if respect_df_hyp:
+            plt.xlim([np.mean(df_hyp_2)-1.01*np.std(df_hyp_2),max(dfs)])
+        plt.title(f"n={n}, p={p}, df={df0}, K={K}, MC={MC}, \n center_cond={np.round(cond,2)}, samples_cond={np.round(samples_conds_mean,2)}, \n  ylogscale={logyscale}")#" \n df_pop={np.round(np.mean(dfs_pop),3)}+/- {np.round(np.std(dfs_pop),3)}")
+        plt.legend(loc="upper left")
+        plt.xlabel("degree of freedom used for center estimation")
+        plt.ylabel("Smallest eigenvalue of computed centers")
+        plt.show()
+        
+    ###################################################################################
+

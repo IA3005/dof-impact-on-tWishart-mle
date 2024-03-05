@@ -8,6 +8,7 @@ from scipy.linalg import sqrtm,pinv,pinvh
 from utils import mean_list, std_list
 from manifold import SPD
 from generate_data import  t_wishart_rvs, generate_random_sdp
+from scipy.stats import multivariate_t
 from estimation import mle_RCG
 
 if __name__ == '__main__':
